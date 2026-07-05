@@ -36,7 +36,86 @@ The raw CSV's multi-valued columns (a title can have multiple directors, cast me
 - `Directors`, `Actors`, `Countries`, `Genres` — lookup tables, each distinct value stored once
 - `TitleDirectors`, `TitleActors`, `TitleCountries`, `TitleGenres` — junction tables resolving the many-to-many relationships
 
-Full DDL: [`sql/01_create_tables.sql`](sql/01_create_tables.sql)
+Full DDL: 
+
+```sql
+CREATE DATABASE NetflixDB;
+GO
+USE NetflixDB
+GO
+
+CREATE TABLE Titles (
+    show_id       VARCHAR(10)   NOT NULL PRIMARY KEY,   -- from source CSV (e.g. s1, s2...)
+    title         NVARCHAR(255) NOT NULL,
+    type          VARCHAR(20)   NOT NULL,               -- 'Movie' or 'TV Show'
+    date_added    DATE          NULL,
+    release_year  SMALLINT      NOT NULL,
+    rating        VARCHAR(10)   NULL,
+    duration      VARCHAR(20)   NULL,
+    description   NVARCHAR(1000) NULL
+);
+GO
+ 
+CREATE TABLE Directors (
+    director_id   INT IDENTITY(1,1) PRIMARY KEY,
+    director_name NVARCHAR(150) NOT NULL UNIQUE
+);
+GO
+ 
+CREATE TABLE Actors (
+    actor_id      INT IDENTITY(1,1) PRIMARY KEY,
+    actor_name    NVARCHAR(150) NOT NULL UNIQUE
+);
+GO
+ 
+CREATE TABLE Countries (
+    country_id    INT IDENTITY(1,1) PRIMARY KEY,
+    country_name  NVARCHAR(100) NOT NULL UNIQUE
+);
+GO
+ 
+CREATE TABLE Genres (
+    genre_id      INT IDENTITY(1,1) PRIMARY KEY,
+    genre_name    NVARCHAR(100) NOT NULL UNIQUE
+);
+GO
+ 
+CREATE TABLE TitleDirectors (
+    show_id       VARCHAR(10) NOT NULL,
+    director_id   INT NOT NULL,
+    PRIMARY KEY (show_id, director_id),
+    FOREIGN KEY (show_id) REFERENCES Titles(show_id),
+    FOREIGN KEY (director_id) REFERENCES Directors(director_id)
+);
+GO
+ 
+CREATE TABLE TitleActors (
+    show_id       VARCHAR(10) NOT NULL,
+    actor_id      INT NOT NULL,
+    PRIMARY KEY (show_id, actor_id),
+    FOREIGN KEY (show_id) REFERENCES Titles(show_id),
+    FOREIGN KEY (actor_id) REFERENCES Actors(actor_id)
+);
+GO
+ 
+CREATE TABLE TitleCountries (
+    show_id       VARCHAR(10) NOT NULL,
+    country_id    INT NOT NULL,
+    PRIMARY KEY (show_id, country_id),
+    FOREIGN KEY (show_id) REFERENCES Titles(show_id),
+    FOREIGN KEY (country_id) REFERENCES Countries(country_id)
+);
+GO
+ 
+CREATE TABLE TitleGenres (
+    show_id       VARCHAR(10) NOT NULL,
+    genre_id      INT NOT NULL,
+    PRIMARY KEY (show_id, genre_id),
+    FOREIGN KEY (show_id) REFERENCES Titles(show_id),
+    FOREIGN KEY (genre_id) REFERENCES Genres(genre_id)
+);
+GO
+```
 
 ## Setup / Run Order
 
@@ -130,13 +209,90 @@ Indexes added after data load, targeting the three categories the project specif
 | `date_added` | Titles | ORDER BY column |
 | `(release_year, date_added)` INCLUDE `title` | Titles | Composite index for the Step 6 optimisation target |
 
-Full script: [`sql/04_indexes.sql`](sql/04_indexes.sql)
+Full script:
+
+```sql
+CREATE INDEX IX_TitleDirectors_DirectorId ON TitleDirectors(director_id);
+CREATE INDEX IX_TitleActors_ActorId       ON TitleActors(actor_id);
+CREATE INDEX IX_TitleCountries_CountryId  ON TitleCountries(country_id);
+CREATE INDEX IX_TitleGenres_GenreId       ON TitleGenres(genre_id);
+GO
+
+CREATE INDEX IX_Titles_Type        ON Titles(type);
+CREATE INDEX IX_Titles_ReleaseYear ON Titles(release_year);
+GO
+
+CREATE INDEX IX_Titles_DateAdded ON Titles(date_added);
+GO
+
+CREATE INDEX IX_Titles_ReleaseYear_DateAdded 
+    ON Titles(release_year, date_added) 
+    INCLUDE (title);
+GO
+```
 
 ## Analysis Queries
 
 Seven queries covering: yearly trend of additions, Movie/TV split, top genres, top directors, country distribution, rating distribution, most frequent actors.
 
-Full script: [`sql/05_analysis_queries.sql`](sql/05_analysis_queries.sql)
+Full script:
+
+```sql
+-- Titles added per year (trend)
+
+SELECT YEAR(date_added) AS year_added, COUNT(*) AS titles_added
+FROM Titles
+WHERE date_added IS NOT NULL
+GROUP BY YEAR(date_added)
+ORDER BY year_added;
+
+-- Movie vs TV Show split
+
+SELECT type, COUNT(*) AS total
+FROM Titles
+GROUP BY type;
+
+-- Top 10 genres
+
+SELECT TOP 10 g.genre_name, COUNT(*) AS title_count
+FROM TitleGenres tg
+JOIN Genres g ON g.genre_id = tg.genre_id
+GROUP BY g.genre_name
+ORDER BY title_count DESC;
+
+-- Top 10 directors
+
+SELECT TOP 10 d.director_name, COUNT(*) AS title_count
+FROM TitleDirectors td
+JOIN Directors d ON d.director_id = td.director_id
+GROUP BY d.director_name
+ORDER BY title_count DESC;
+
+-- Content distribution by country
+
+SELECT TOP 10 c.country_name, COUNT(*) AS title_count
+FROM TitleCountries tc
+JOIN Countries c ON c.country_id = tc.country_id
+GROUP BY c.country_name
+ORDER BY title_count DESC;
+
+-- Rating distribution
+
+SELECT rating, COUNT(*) AS total
+FROM Titles
+WHERE rating IS NOT NULL
+GROUP BY rating
+ORDER BY total DESC;
+
+-- Most frequently appearing actors
+
+SELECT TOP 10 a.actor_name, COUNT(*) AS appearances
+FROM TitleActors ta
+JOIN Actors a ON a.actor_id = ta.actor_id
+GROUP BY a.actor_name
+ORDER BY appearances DESC;
+
+```
 
 **Insight notes** *(fill in with your actual results once you've run them and interpreted the output — don't leave this section as just numbers)*:
 - Titles added per year: ...
