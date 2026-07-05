@@ -5,3 +5,6 @@
 ![Netflix Dataset from Kaggle](netflix_dataset.PNG)
 
 We used a netflix dataset from Kaggle, we choose this dataset due to its popularity.
+
+
+![Netflix Dataset ERD](netflix_erd.PNG)
