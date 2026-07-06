@@ -24,8 +24,6 @@ A normalized SQL Server database built from the [Netflix Movies and TV Shows dat
 
 ![Netflix Dataset](netflix_dataset.PNG)
 
-*(The raw CSV isn't included in this repo — download it from Kaggle if you want to run this yourself.)*
-
 ## Why Normalize It?
 
 The raw CSV stores `director`, `cast`, `country`, and `genre` as comma-separated text in a single cell — for example, one row's `director` column might literally contain `"Robert Rodriguez, Alex Rivera"`.
