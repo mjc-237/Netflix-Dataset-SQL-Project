@@ -119,6 +119,10 @@ LEFT JOIN Titles t ON t.show_id = td.show_id
 WHERE t.show_id IS NULL;   -- should return 0 rows
 ```
 
+![validation output](valid_output.PNG)
+
+
+
 ## Step 4: Indexing
 
 **What:** Add indexes — a lookup shortcut SQL Server can use instead of scanning every row.
