@@ -135,7 +135,7 @@ WHERE t.show_id IS NULL;   -- should return 0 rows
 **Where they were added:** on foreign key columns used in joins, and on columns used to filter (`release_year`, `type`) or sort (`date_added`).
 
 ```sql
-CREATE INDEX IX_TitleGenres_GenreId ON TitleGenres(genre_id);
+CREATE INDEX IX_TitleGenres_GenreId ON TitleGenres(genre_id); --IX is a naming convention for index
 CREATE INDEX IX_Titles_ReleaseYear  ON Titles(release_year);
 ```
 
