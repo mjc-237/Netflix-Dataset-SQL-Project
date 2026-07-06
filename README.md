@@ -119,8 +119,9 @@ LEFT JOIN Titles t ON t.show_id = td.show_id
 WHERE t.show_id IS NULL;   -- should return 0 rows
 ```
 
-Output:
+**Output:**
 
+---
 
 ![validation output](valid_output.PNG)
 
