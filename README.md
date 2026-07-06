@@ -144,11 +144,42 @@ CREATE INDEX IX_Titles_ReleaseYear  ON Titles(release_year);
 Seven queries answering real questions about the data — for example:
 
 ```sql
--- Which genres appear most often?
+-- Titles added per year (trend)
+
+SELECT YEAR(date_added) AS year_added, COUNT(*) AS titles_added
+FROM Titles
+WHERE date_added IS NOT NULL
+GROUP BY YEAR(date_added)
+ORDER BY year_added;
+
+-- Movie vs TV Show split
+
+SELECT type, COUNT(*) AS total
+FROM Titles
+GROUP BY type;
+
+-- Top 10 genres
+
 SELECT TOP 10 g.genre_name, COUNT(*) AS title_count
 FROM TitleGenres tg
 JOIN Genres g ON g.genre_id = tg.genre_id
 GROUP BY g.genre_name
+ORDER BY title_count DESC;
+
+-- Top 10 directors
+
+SELECT TOP 10 d.director_name, COUNT(*) AS title_count
+FROM TitleDirectors td
+JOIN Directors d ON d.director_id = td.director_id
+GROUP BY d.director_name
+ORDER BY title_count DESC;
+
+-- Content distribution by country
+
+SELECT TOP 10 c.country_name, COUNT(*) AS title_count
+FROM TitleCountries tc
+JOIN Countries c ON c.country_id = tc.country_id
+GROUP BY c.country_name
 ORDER BY title_count DESC;
 ```
 
