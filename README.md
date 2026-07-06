@@ -121,7 +121,7 @@ WHERE t.show_id IS NULL;   -- should return 0 rows
 
 **Output:**
 
----
+
 
 ![validation output](valid_output.PNG)
 
