@@ -183,7 +183,7 @@ GROUP BY c.country_name
 ORDER BY title_count DESC;
 ```
 
-**Key insights found:**
+**Output:**
 - *[fill in — e.g. "Titles added peaked around 20XX, then declined"]*
 - *[fill in — e.g. "Dramas and comedies dominate the catalogue"]*
 - *[fill in]*
