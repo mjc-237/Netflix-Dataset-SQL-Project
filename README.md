@@ -184,9 +184,12 @@ ORDER BY title_count DESC;
 ```
 
 **Output:**
-- *[fill in — e.g. "Titles added peaked around 20XX, then declined"]*
-- *[fill in — e.g. "Dramas and comedies dominate the catalogue"]*
-- *[fill in]*
+
+![year added output](year_added.PNG)
+![type of media output](type.PNG)
+![top genre](genre_count.PNG)
+![top directors](director_count.PNG)
+![country distribution](country_count.PNG)
 
 ## Step 6: Optimising a Query
 
