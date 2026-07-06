@@ -1,322 +1,195 @@
 # Netflix Relational Database — SQL Mini-Project
 
-A normalized SQL Server database built from the [Netflix Movies and TV Shows dataset](https://www.kaggle.com/datasets/shivamb/netflix-shows) on Kaggle, covering schema design, data loading, indexing, and analytical querying.
+A normalized SQL Server database built from the [Netflix Movies and TV Shows dataset](https://www.kaggle.com/datasets/shivamb/netflix-shows) on Kaggle. This project takes a single flat CSV and turns it into a properly structured relational database, then uses it to answer real analytical questions.
 
 ## Contents
 
-- [Dataset](#dataset)
+- [The Dataset](#the-dataset)
+- [Why Normalize It?](#why-normalize-it)
 - [Schema Design](#schema-design)
-- [Setup / Run Order](#setup--run-order)
-- [Data Loading Process](#data-loading-process)
-- [Challenges & Debugging](#challenges--debugging)
-- [Indexing](#indexing)
-- [Analysis Queries](#analysis-queries)
-- [Query Optimisation](#query-optimisation)
-- [Next Steps / What I'd Do Differently](#next-steps--what-id-do-differently)
+- [Step 1: Creating the Tables](#step-1-creating-the-tables)
+- [Step 2: Loading the Data](#step-2-loading-the-data)
+- [Step 3: Validating the Data](#step-3-validating-the-data)
+- [Step 4: Indexing](#step-4-indexing)
+- [Step 5: Analysis Queries](#step-5-analysis-queries)
+- [Step 6: Optimising a Query](#step-6-optimising-a-query)
+- [Challenges Along the Way](#challenges-along-the-way)
+- [What I'd Do Differently](#what-id-do-differently)
 
 ---
 
-## Dataset
+## The Dataset
 
-Source: Kaggle — Netflix Movies and TV Shows (`netflix_titles.csv`)
+`netflix_titles.csv` — one row per title (movie or TV show), including its director, cast, country, genre, release year, and date added to Netflix.
 
-![Netflix Dataset Kaggle](netflix_dataset.PNG)
+![Netflix Dataset](netflix_dataset.PNG)
 
-The raw CSV is **not included in this repo** (not my data to redistribute) — download it directly from Kaggle and place it locally before running the load scripts.
+*(The raw CSV isn't included in this repo — download it from Kaggle if you want to run this yourself.)*
 
-Raw structure: one row per title, with `director`, `cast`, `country`, and `listed_in` (genre) stored as comma-separated free text in single columns — this shaped most of the design decisions below.
+## Why Normalize It?
+
+The raw CSV stores `director`, `cast`, `country`, and `genre` as comma-separated text in a single cell — for example, one row's `director` column might literally contain `"Robert Rodriguez, Alex Rivera"`.
+
+That's a problem for a relational database: a column should hold one value, not a hidden list. So instead of one flat table, I split the data into:
+
+- **One core table** (`Titles`) — one row per show
+- **Four lookup tables** (`Directors`, `Actors`, `Countries`, `Genres`) — each real-world name stored exactly once
+- **Four junction tables** — these connect titles to their directors/actors/countries/genres, since any title can have several of each
+
+This is the standard fix for "one column, many values" — known as resolving a many-to-many relationship.
 
 ## Schema Design
 
 ![ERD](netflix_erd.PNG)
 
-The raw CSV's multi-valued columns (a title can have multiple directors, cast members, countries, and genres) meant a flat single-table design would violate normal form. I split these into lookup entities + junction tables:
+## Step 1: Creating the Tables
 
-- `Titles` — one row per show (core entity)
-- `Directors`, `Actors`, `Countries`, `Genres` — lookup tables, each distinct value stored once
-- `TitleDirectors`, `TitleActors`, `TitleCountries`, `TitleGenres` — junction tables resolving the many-to-many relationships
+**What:** Define every table, with primary keys (unique ID for each row) and foreign keys (links between tables).
 
-Full DDL: 
+**Why:** This is the actual database structure — it has to exist before anything else can happen.
+
+**How:** One `CREATE TABLE` statement per table. Here's the core table as an example:
 
 ```sql
-CREATE DATABASE NetflixDB;
-GO
-USE NetflixDB
-GO
-
 CREATE TABLE Titles (
-    show_id       VARCHAR(10)   NOT NULL PRIMARY KEY,   -- from source CSV (e.g. s1, s2...)
+    show_id       VARCHAR(10)   PRIMARY KEY,
     title         NVARCHAR(255) NOT NULL,
-    type          VARCHAR(20)   NOT NULL,               -- 'Movie' or 'TV Show'
-    date_added    DATE          NULL,
+    type          VARCHAR(20)   NOT NULL,   -- 'Movie' or 'TV Show'
+    date_added    DATE,
     release_year  SMALLINT      NOT NULL,
-    rating        VARCHAR(10)   NULL,
-    duration      VARCHAR(20)   NULL,
-    description   NVARCHAR(1000) NULL
-);
-GO
- 
-CREATE TABLE Directors (
-    director_id   INT IDENTITY(1,1) PRIMARY KEY,
-    director_name NVARCHAR(150) NOT NULL UNIQUE
-);
-GO
- 
-CREATE TABLE Actors (
-    actor_id      INT IDENTITY(1,1) PRIMARY KEY,
-    actor_name    NVARCHAR(150) NOT NULL UNIQUE
-);
-GO
- 
-CREATE TABLE Countries (
-    country_id    INT IDENTITY(1,1) PRIMARY KEY,
-    country_name  NVARCHAR(100) NOT NULL UNIQUE
-);
-GO
- 
-CREATE TABLE Genres (
-    genre_id      INT IDENTITY(1,1) PRIMARY KEY,
-    genre_name    NVARCHAR(100) NOT NULL UNIQUE
-);
-GO
- 
-CREATE TABLE TitleDirectors (
-    show_id       VARCHAR(10) NOT NULL,
-    director_id   INT NOT NULL,
-    PRIMARY KEY (show_id, director_id),
-    FOREIGN KEY (show_id) REFERENCES Titles(show_id),
-    FOREIGN KEY (director_id) REFERENCES Directors(director_id)
-);
-GO
- 
-CREATE TABLE TitleActors (
-    show_id       VARCHAR(10) NOT NULL,
-    actor_id      INT NOT NULL,
-    PRIMARY KEY (show_id, actor_id),
-    FOREIGN KEY (show_id) REFERENCES Titles(show_id),
-    FOREIGN KEY (actor_id) REFERENCES Actors(actor_id)
-);
-GO
- 
-CREATE TABLE TitleCountries (
-    show_id       VARCHAR(10) NOT NULL,
-    country_id    INT NOT NULL,
-    PRIMARY KEY (show_id, country_id),
-    FOREIGN KEY (show_id) REFERENCES Titles(show_id),
-    FOREIGN KEY (country_id) REFERENCES Countries(country_id)
-);
-GO
- 
-CREATE TABLE TitleGenres (
-    show_id       VARCHAR(10) NOT NULL,
-    genre_id      INT NOT NULL,
-    PRIMARY KEY (show_id, genre_id),
-    FOREIGN KEY (show_id) REFERENCES Titles(show_id),
-    FOREIGN KEY (genre_id) REFERENCES Genres(genre_id)
-);
-GO
-```
-
-## Setup / Run Order
-
-Scripts must be run in this order — later scripts depend on tables/data created by earlier ones:
-
-1. `sql/01_create_tables.sql` — creates the database and core schema
-2. `sql/02_create_staging.sql` — creates the flat staging table
-3. Load the CSV into `Staging_Netflix` (see [Data Loading Process](#data-loading-process))
-4. `sql/03_split_and_load.sql` — splits multi-value columns and populates all lookup + junction tables
-5. `sql/04_indexes.sql` — adds indexes (run **after** data is loaded, not before)
-6. `sql/05_analysis_queries.sql` — the 7 analytical queries
-
-## Data Loading Process
-
-### Why a staging table?
-
-The raw CSV can't be inserted directly into the normalized schema — `director`, `cast`, `country`, and `listed_in` contain comma-separated multi-values that need to be split before they map onto separate lookup and junction tables. The staging table is a flat, permissive landing spot (no constraints, dates imported as text) that mirrors the CSV exactly, so the import itself can't fail on type mismatches or messy data. Splitting happens afterward, in SQL, against this staging copy.
-
-```sql
-CREATE TABLE Staging_Netflix (
-    show_id       VARCHAR(10),
-    type          VARCHAR(20),
-    title         NVARCHAR(255),
-    director      NVARCHAR(MAX),
-    cast_raw      NVARCHAR(MAX),
-    country       NVARCHAR(MAX),
-    date_added    NVARCHAR(50),   -- text on purpose — converted to DATE after load
-    release_year  SMALLINT,
     rating        VARCHAR(10),
     duration      VARCHAR(20),
-    listed_in     NVARCHAR(MAX),
     description   NVARCHAR(1000)
 );
 ```
 
-### Loading the CSV
+Each lookup table (e.g. `Directors`) follows the same pattern — an ID column plus a name column. Each junction table (e.g. `TitleDirectors`) just holds two foreign keys, linking a show to a director.
 
-Used `BULK INSERT` rather than the SSMS Import wizards — the Import and Export Wizard wasn't available in this SSMS install (missing SSIS component), and `BULK INSERT` is scriptable and version-controllable, which fits a repo better than a one-off GUI action anyway.
+*Full script: `01_create_tables.sql`*
+
+## Step 2: Loading the Data
+
+**What:** Get the CSV data into the database.
+
+**Why it's not a simple one-step import:** the CSV's multi-value columns don't map directly onto a normalized schema — a single `director` cell might need to become one row in `Directors` and several rows in `TitleDirectors`. So loading happens in two stages:
+
+**1. Staging table** — a temporary, flexible table that matches the raw CSV exactly (no keys, no strict types). The CSV loads here first, with zero risk of failing due to messy data.
 
 ```sql
-BULK INSERT Staging_Netflix
-FROM 'C:\NetflixData\netflix_titles.csv'
-WITH (
-    FIRSTROW = 2,
-    FORMAT = 'CSV',
-    FIELDTERMINATOR = ',',
-    ROWTERMINATOR = '0x0a',
-    CODEPAGE = '65001',
-    TABLOCK
+CREATE TABLE Staging_Netflix (
+    show_id       VARCHAR(10),
+    director      NVARCHAR(MAX),   -- still comma-separated at this point
+    country       NVARCHAR(MAX),
+    listed_in     NVARCHAR(MAX),   -- genre
+    -- ...remaining columns
 );
 ```
 
-Screenshot: *[row count check confirming staging load matched the CSV row count]*
-
-## Challenges & Debugging
-
-### 1. `BULK INSERT` row terminator mismatch
-
-Initial load failed with a generic `Cannot obtain the required interface ("IID_IColumnsInfo")` error. This message doesn't describe the real problem — the actual cause was a row terminator mismatch: `ROWTERMINATOR = '\n'` didn't match the CSV's actual line endings. Fixed by switching to the hex form `ROWTERMINATOR = '0x0a'`, which matches regardless of `\n` vs `\r\n`.
-
-Screenshot: *[the error message]*
-
-### 2. Duplicate key violation when populating junction tables
-
-```
-Violation of PRIMARY KEY constraint 'PK__TitleDir__...'. Cannot insert duplicate key... (s3719, 1801)
+The CSV is loaded into it using `BULK INSERT`:
+```sql
+BULK INSERT Staging_Netflix
+FROM 'C:\NetflixData\netflix_titles.csv'
+WITH (FIRSTROW = 2, FORMAT = 'CSV', FIELDTERMINATOR = ',', ROWTERMINATOR = '0x0a');
 ```
 
-Cause: a small number of source rows had the same director name repeated within one comma-separated cell. `STRING_SPLIT` faithfully returned both occurrences, and the junction table insert didn't deduplicate at the `(show_id, director_name)` level before joining. Fixed by adding `DISTINCT` inside the splitting CTE, before the join to look up each `director_id`.
+**2. Split and distribute** — SQL splits each comma-separated cell and inserts the individual values into the proper lookup and junction tables:
+```sql
+;WITH SplitDirectors AS (
+    SELECT DISTINCT s.show_id, LTRIM(RTRIM(d.value)) AS director_name
+    FROM Staging_Netflix s
+    CROSS APPLY STRING_SPLIT(s.director, ',') d
+    WHERE s.director IS NOT NULL
+)
+INSERT INTO Directors (director_name)
+SELECT DISTINCT director_name FROM SplitDirectors sd
+WHERE NOT EXISTS (SELECT 1 FROM Directors dr WHERE dr.director_name = sd.director_name);
+```
+The same pattern (split → insert distinct names → link to the show) repeats for actors, countries, and genres.
 
-Screenshot: *[error + corrected query]*
+*Full script: `02_load_data.sql`*
 
-### 3. `STRING_AGG(DISTINCT ...)` invalid syntax, and the fan-out it was covering for
+## Step 3: Validating the Data
 
-Attempting a validation query that joined `Titles` to `TitleDirectors`, `TitleGenres`, and `TitleCountries` in one `SELECT` failed on `STRING_AGG(DISTINCT ...)` — T-SQL doesn't support `DISTINCT` inside `STRING_AGG`. Investigating why I'd reached for `DISTINCT` in the first place revealed the real issue: joining three one-to-many relationships in a single query causes a fan-out (a title with 2 directors × 3 genres produces 6 joined rows before aggregation), which silently duplicates values in the aggregated output. Fixed by aggregating each relationship in its own correlated subquery instead, avoiding the fan-out entirely rather than patching over it.
+**What:** Confirm the data actually loaded correctly — not just "it ran without an error."
 
-Screenshot: *[before/after query + sample output showing the duplication]*
+**Why:** A query can complete successfully and still produce wrong results, e.g. if a join causes duplicate rows.
 
-## Indexing
+**How:** Two kinds of checks:
+```sql
+-- Row counts look sane
+SELECT COUNT(*) FROM Titles;
 
-Indexes added after data load, targeting the three categories the project specifies:
+-- No junction rows pointing to a show that doesn't exist
+SELECT td.show_id FROM TitleDirectors td
+LEFT JOIN Titles t ON t.show_id = td.show_id
+WHERE t.show_id IS NULL;   -- should return 0 rows
+```
 
-| Column(s) | Table | Why |
-|---|---|---|
-| `director_id` | TitleDirectors | Reverse-direction JOIN lookup (PK only covers show_id → director_id) |
-| `actor_id` | TitleActors | Same reasoning |
-| `country_id` | TitleCountries | Same reasoning |
-| `genre_id` | TitleGenres | Same reasoning |
-| `type` | Titles | WHERE filter used in analysis queries |
-| `release_year` | Titles | WHERE filter |
-| `date_added` | Titles | ORDER BY column |
-| `(release_year, date_added)` INCLUDE `title` | Titles | Composite index for the Step 6 optimisation target |
+## Step 4: Indexing
 
-Full script:
+**What:** Add indexes — a lookup shortcut SQL Server can use instead of scanning every row.
+
+**Why:** Without one, filtering or sorting a large table means reading it top to bottom every time.
+
+**Where they were added:** on foreign key columns used in joins, and on columns used to filter (`release_year`, `type`) or sort (`date_added`).
 
 ```sql
-CREATE INDEX IX_TitleDirectors_DirectorId ON TitleDirectors(director_id);
-CREATE INDEX IX_TitleActors_ActorId       ON TitleActors(actor_id);
-CREATE INDEX IX_TitleCountries_CountryId  ON TitleCountries(country_id);
-CREATE INDEX IX_TitleGenres_GenreId       ON TitleGenres(genre_id);
-GO
-
-CREATE INDEX IX_Titles_Type        ON Titles(type);
-CREATE INDEX IX_Titles_ReleaseYear ON Titles(release_year);
-GO
-
-CREATE INDEX IX_Titles_DateAdded ON Titles(date_added);
-GO
-
-CREATE INDEX IX_Titles_ReleaseYear_DateAdded 
-    ON Titles(release_year, date_added) 
-    INCLUDE (title);
-GO
+CREATE INDEX IX_TitleGenres_GenreId ON TitleGenres(genre_id);
+CREATE INDEX IX_Titles_ReleaseYear  ON Titles(release_year);
 ```
 
-## Analysis Queries
+*Full script: `03_indexes.sql`*
 
-Seven queries covering: yearly trend of additions, Movie/TV split, top genres, top directors, country distribution, rating distribution, most frequent actors.
+## Step 5: Analysis Queries
 
-Full script:
+Seven queries answering real questions about the data — for example:
 
 ```sql
--- Titles added per year (trend)
-
-SELECT YEAR(date_added) AS year_added, COUNT(*) AS titles_added
-FROM Titles
-WHERE date_added IS NOT NULL
-GROUP BY YEAR(date_added)
-ORDER BY year_added;
-
--- Movie vs TV Show split
-
-SELECT type, COUNT(*) AS total
-FROM Titles
-GROUP BY type;
-
--- Top 10 genres
-
+-- Which genres appear most often?
 SELECT TOP 10 g.genre_name, COUNT(*) AS title_count
 FROM TitleGenres tg
 JOIN Genres g ON g.genre_id = tg.genre_id
 GROUP BY g.genre_name
 ORDER BY title_count DESC;
-
--- Top 10 directors
-
-SELECT TOP 10 d.director_name, COUNT(*) AS title_count
-FROM TitleDirectors td
-JOIN Directors d ON d.director_id = td.director_id
-GROUP BY d.director_name
-ORDER BY title_count DESC;
-
--- Content distribution by country
-
-SELECT TOP 10 c.country_name, COUNT(*) AS title_count
-FROM TitleCountries tc
-JOIN Countries c ON c.country_id = tc.country_id
-GROUP BY c.country_name
-ORDER BY title_count DESC;
-
--- Rating distribution
-
-SELECT rating, COUNT(*) AS total
-FROM Titles
-WHERE rating IS NOT NULL
-GROUP BY rating
-ORDER BY total DESC;
-
--- Most frequently appearing actors
-
-SELECT TOP 10 a.actor_name, COUNT(*) AS appearances
-FROM TitleActors ta
-JOIN Actors a ON a.actor_id = ta.actor_id
-GROUP BY a.actor_name
-ORDER BY appearances DESC;
-
 ```
 
-**Insight notes** *(fill in with your actual results once you've run them and interpreted the output — don't leave this section as just numbers)*:
-- Titles added per year: ...
-- Top genre: ...
-- [etc.]
+**Key insights found:**
+- *[fill in — e.g. "Titles added peaked around 20XX, then declined"]*
+- *[fill in — e.g. "Dramas and comedies dominate the catalogue"]*
+- *[fill in]*
 
-## Query Optimisation
+*Full script: `04_analysis_queries.sql`*
 
-Target query:
+## Step 6: Optimising a Query
+
+**Target query** — filters by release year, sorted by date added:
 ```sql
-SELECT t.title, t.release_year, t.date_added
-FROM Titles t
-WHERE t.release_year > 2018
-ORDER BY t.date_added;
+SELECT title, release_year, date_added
+FROM Titles
+WHERE release_year > 2018
+ORDER BY date_added;
 ```
 
-**Before:** *[screenshot: execution plan + logical reads, cache cleared via DBCC DROPCLEANBUFFERS / FREEPROCCACHE before measuring]*
+**Before adding an index:** *[screenshot — execution plan + read count]*
 
-**After** adding `IX_Titles_ReleaseYear_DateAdded (release_year, date_added) INCLUDE (title)`: *[screenshot: execution plan + logical reads]*
+**After** adding a matching index:
+```sql
+CREATE INDEX IX_Titles_ReleaseYear_DateAdded 
+    ON Titles(release_year, date_added) 
+    INCLUDE (title);
+```
+*[screenshot — execution plan + read count]*
 
-**Result:** *[state honestly what actually happened — Scan→Seek and reads dropped, or the optimizer still chose a scan at this row volume. Both are legitimate outcomes; explain which one occurred and why.]*
+**Result:** *[state plainly what happened — did SQL Server switch from scanning the whole table to seeking directly? If not, that's still a valid finding worth explaining: on a small table, the optimiser sometimes decides a scan is cheaper anyway.]*
 
-## Next Steps / What I'd Do Differently
+## Challenges Along the Way
 
-- *[e.g. handle the `duration` column more precisely — currently kept as free text ("90 min" / "3 Seasons"), splitting into a numeric value + unit would enable numeric analysis]*
-- *[e.g. investigate the volume of unparseable `date_added` values excluded by TRY_CONVERT, rather than silently nulling them]*
-- *[e.g. test indexing benefit at a larger synthetic data volume, since the real dataset may be too small to show a clear before/after]*
+- **Generic `BULK INSERT` error** — the message didn't explain the real issue, which turned out to be a mismatch between the row terminator setting and the CSV's actual line endings. Fixed by using `0x0a` instead of `\n`.
+- **Duplicate key error loading directors** — caused by a director's name being repeated within a single CSV cell. Fixed by deduplicating before inserting.
+- **Validation query duplicated results** — joining three separate one-to-many relationships at once multiplied rows before they were counted. Fixed by aggregating each relationship separately instead.
+
+## What I'd Do Differently
+
+- *[e.g. split `duration` into a number + unit so it can be used numerically]*
+- *[e.g. check how much date data was lost from failed conversions]*
+- *[e.g. test the indexing improvement on a larger dataset, since this one may be too small to show a dramatic difference]*
