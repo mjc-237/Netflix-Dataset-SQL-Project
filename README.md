@@ -63,8 +63,6 @@ CREATE TABLE Titles (
 
 Each lookup table (e.g. `Directors`) follows the same pattern — an ID column plus a name column. Each junction table (e.g. `TitleDirectors`) just holds two foreign keys, linking a show to a director.
 
-*Full script: `01_create_tables.sql`*
-
 ## Step 2: Loading the Data
 
 **What:** Get the CSV data into the database.
@@ -104,8 +102,6 @@ WHERE NOT EXISTS (SELECT 1 FROM Directors dr WHERE dr.director_name = sd.directo
 ```
 The same pattern (split → insert distinct names → link to the show) repeats for actors, countries, and genres.
 
-*Full script: `02_load_data.sql`*
-
 ## Step 3: Validating the Data
 
 **What:** Confirm the data actually loaded correctly — not just "it ran without an error."
@@ -136,8 +132,6 @@ CREATE INDEX IX_TitleGenres_GenreId ON TitleGenres(genre_id);
 CREATE INDEX IX_Titles_ReleaseYear  ON Titles(release_year);
 ```
 
-*Full script: `03_indexes.sql`*
-
 ## Step 5: Analysis Queries
 
 Seven queries answering real questions about the data — for example:
@@ -155,8 +149,6 @@ ORDER BY title_count DESC;
 - *[fill in — e.g. "Titles added peaked around 20XX, then declined"]*
 - *[fill in — e.g. "Dramas and comedies dominate the catalogue"]*
 - *[fill in]*
-
-*Full script: `04_analysis_queries.sql`*
 
 ## Step 6: Optimising a Query
 
