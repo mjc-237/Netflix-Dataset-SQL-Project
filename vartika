@@ -1,0 +1,114 @@
+step-by-step pipeline for downloading the raw Netflix Movies & TV Shows dataset, cleaning and normalizing it using Python, and executing the deployment scripts in SQL Server Management Studio (SSMS).
+
+---
+
+## 🛠️ Pipeline Architecture
+
+The ETL (Extract, Transform, Load) and database setup pipeline relies on the following file sequence:
+
+```mermaid
+graph TD
+    A[Kaggle / GitHub Raw CSV] -- 1. Download & Clean --> B(clean_and_import.py)
+    B -- 2. Generates --> C(insert_data.sql)
+    D(create_tables.sql) -- 3. Run First in SSMS --> E[NetflixDB Database]
+    C -- 4. Run Second in SSMS --> E
+    F(create_indexes.sql) -- 5. Run Third in SSMS --> E
+```
+
+### File Manifest
+
+*   **[clean_and_import.py](file:///c:/Users/Vartika/.gemini/antigravity-ide/scratch/northwind-setup/clean_and_import.py)**: Python script that pulls the flat CSV dataset from Kaggle/GitHub, cleans single quotes, parses dates, splits comma-separated fields, and batches them into a single transactable SQL script.
+*   **[create_tables.sql](file:///c:/Users/Vartika/.gemini/antigravity-ide/scratch/northwind-setup/create_tables.sql)**: Database creation DDL (Data Definition Language) script that creates the 10 normalized tables.
+*   **[insert_data.sql](file:///c:/Users/Vartika/.gemini/antigravity-ide/scratch/northwind-setup/insert_data.sql)**: Seeding script populated with INSERT commands for all cleaned rows.
+*   **[create_indexes.sql](file:///c:/Users/Vartika/.gemini/antigravity-ide/scratch/northwind-setup/create_indexes.sql)**: Performance tuning script applying non-clustered indexes on search keys.
+
+---
+
+## Step 1: Download & Clean (Python ETL)
+
+The Python script executes the cleaning rules to convert a flat, unnormalized spreadsheet into relational rows.
+
+### A. Cleaning Rules Applied
+1.  **Single Quote Escaping**: Replaces `'` with `''` (e.g., `Dick Johnson Is Dead` stays, but names with apostrophes are safely escaped to prevent SQL injection or compilation syntax errors).
+2.  **Date Parsing**: Converts verbose strings like `September 25, 2021` or `25-Sep-21` into standard SQL date format: `'2021-09-25'`.
+3.  **Atomicity Splits**: Splits comma-separated values in fields like `director`, `cast`, `country`, and `listed_in` (genres) into individual rows to satisfy **First Normal Form (1NF)**.
+
+### B. Execution
+Run the script using your terminal or PowerShell console:
+
+```powershell
+# Navigate to project folder (Do not cd if running inside IDE Terminal)
+python clean_and_import.py
+```
+
+*Output summary should display:*
+```text
+Downloading Netflix dataset...
+Raw CSV saved to netflix_titles.csv
+Reading and cleaning data...
+Summary of extracted entities:
+ - Titles: 7787
+ - Ratings: 14
+ - Directors: 4781
+ - Actors: 32881
+ - Countries: 122
+ - Genres: 42
+Writing SQL script to insert_data.sql...
+Successfully generated SQL import script.
+```
+
+---
+
+## Step 2: Database Initialization (SSMS)
+
+Configure the local SQL Server Express instance to host the new database.
+
+1.  Open **SQL Server Management Studio (SSMS)**.
+2.  Connect to your server:
+    *   **Server Name**: `localhost\SQLEXPRESS01` (or `.\SQLEXPRESS01`)
+    *   **Authentication**: Windows Authentication
+3.  Open a **New Query** window and run the following command to create the database:
+
+```sql
+CREATE DATABASE NetflixDB;
+GO
+```
+
+---
+
+## Step 3: Schema Setup and Seeding (SSMS)
+
+To prevent referential integrity constraint errors, you must execute the SQL scripts in a precise order.
+
+### 1. Build Tables
+Open **[create_tables.sql](file:///c:/Users/Vartika/.gemini/antigravity-ide/scratch/northwind-setup/create_tables.sql)** in SSMS, ensure the database dropdown context is set to **`NetflixDB`**, and execute the script (**F5**).
+*   *Why first?* Tables must exist with primary keys before child tables can define foreign keys referencing them.
+
+### 2. Populate Records
+Open **[insert_data.sql](file:///c:/Users/Vartika/.gemini/antigravity-ide/scratch/northwind-setup/insert_data.sql)** in SSMS and execute the script (**F5**).
+*   *Note*: Because this file contains batch inserts for 7,787 titles and their associated actor/director mapping records, it may take 10 to 30 seconds to complete. The transactions are wrapped inside `BEGIN TRANSACTION` and `COMMIT TRANSACTION` to ensure database consistency.
+
+### 3. Apply Indexes
+Open **[create_indexes.sql](file:///c:/Users/Vartika/.gemini/antigravity-ide/scratch/northwind-setup/create_indexes.sql)** in SSMS and execute the script (**F5**).
+*   *Why last?* Creating indexes on empty tables is fast, but importing data on highly indexed tables slows down insertions because the database must update the B-Tree index pages for every row inserted. Running this last is a database loading best-practice.
+
+---
+
+## Step 4: Verification
+
+To verify the data is fully populated, run this basic verification query in SSMS:
+
+```sql
+USE NetflixDB;
+GO
+
+SELECT 
+    (SELECT COUNT(*) FROM dbo.TITLES) AS total_titles,
+    (SELECT COUNT(*) FROM dbo.ACTORS) AS total_actors,
+    (SELECT COUNT(*) FROM dbo.DIRECTORS) AS total_directors;
+```
+
+**Expected Results:**
+*   `total_titles`: **7,787**
+*   `total_actors`: **32,881**
+*   `total_directors`: **4,781**
