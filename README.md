@@ -194,24 +194,24 @@ ORDER BY title_count DESC;
 ## Step 6: Optimising a Query
 
 **Target query** — filters by release year, sorted by date added:
+
+```sql
+CREATE INDEX IX_Titles_ReleaseYear_DateAdded 
+    ON Titles(release_year, date_added) 
+    INCLUDE (title);
+```
+
 ```sql
 SELECT title, release_year, date_added
 FROM Titles
 WHERE release_year > 2018
 ORDER BY date_added;
 ```
+![optimised query](optimised_query.PNG)
 
-**Before adding an index:** *[screenshot — execution plan + read count]*
 
-**After** adding a matching index:
-```sql
-CREATE INDEX IX_Titles_ReleaseYear_DateAdded 
-    ON Titles(release_year, date_added) 
-    INCLUDE (title);
-```
-*[screenshot — execution plan + read count]*
 
-**Result:** *[state plainly what happened — did SQL Server switch from scanning the whole table to seeking directly? If not, that's still a valid finding worth explaining: on a small table, the optimiser sometimes decides a scan is cheaper anyway.]*
+Note: on a small table, the optimiser sometimes decides a scan is cheaper anyway.
 
 ## Challenges Along the Way
 
