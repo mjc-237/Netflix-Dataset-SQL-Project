@@ -220,7 +220,3 @@ CREATE INDEX IX_Titles_ReleaseYear_DateAdded
 - **Validation query duplicated results** — joining three separate one-to-many relationships at once multiplied rows before they were counted. Fixed by aggregating each relationship separately instead.
 
 ## What I'd Do Differently
-
-- *[e.g. split `duration` into a number + unit so it can be used numerically]*
-- *[e.g. check how much date data was lost from failed conversions]*
-- *[e.g. test the indexing improvement on a larger dataset, since this one may be too small to show a dramatic difference]*
