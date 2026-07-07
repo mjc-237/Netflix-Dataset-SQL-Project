@@ -209,6 +209,7 @@ ORDER BY date_added;
 ```
 ![optimised query](optimised_query.PNG)
 
+![Efficency test](cost.png)
 
 
 Note: on a small table, the optimiser sometimes decides a scan is cheaper anyway.
