@@ -139,7 +139,30 @@ CREATE INDEX IX_TitleGenres_GenreId ON TitleGenres(genre_id); --IX is a naming c
 CREATE INDEX IX_Titles_ReleaseYear  ON Titles(release_year);
 ```
 
-## Step 5: Analysis Queries
+## Step 5: Optimising a Query
+
+**Target query** — filters by release year, sorted by date added:
+
+```sql
+CREATE INDEX IX_Titles_ReleaseYear_DateAdded 
+    ON Titles(release_year, date_added) 
+    INCLUDE (title);
+```
+
+```sql
+SELECT title, release_year, date_added
+FROM Titles
+WHERE release_year > 2018
+ORDER BY date_added;
+```
+![optimised query](optimised_query.PNG)
+
+![Efficency test](cost.png)
+
+
+Note: on a small table, the optimiser sometimes decides a scan is cheaper anyway.
+
+## Step 6: Analysis Queries
 
 Seven queries answering real questions about the data — for example:
 
@@ -191,28 +214,6 @@ ORDER BY title_count DESC;
 ![top directors](director_count.PNG)
 ![country distribution](country_count.PNG)
 
-## Step 6: Optimising a Query
-
-**Target query** — filters by release year, sorted by date added:
-
-```sql
-CREATE INDEX IX_Titles_ReleaseYear_DateAdded 
-    ON Titles(release_year, date_added) 
-    INCLUDE (title);
-```
-
-```sql
-SELECT title, release_year, date_added
-FROM Titles
-WHERE release_year > 2018
-ORDER BY date_added;
-```
-![optimised query](optimised_query.PNG)
-
-![Efficency test](cost.png)
-
-
-Note: on a small table, the optimiser sometimes decides a scan is cheaper anyway.
 
 ## Challenges Along the Way
 
