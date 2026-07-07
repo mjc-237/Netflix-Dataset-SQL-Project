@@ -132,7 +132,7 @@ WHERE t.show_id IS NULL;   -- should return 0 rows
 
 **Why:** Without one, filtering or sorting a large table means reading it top to bottom every time.
 
-**Where they were added:** on foreign key columns used in joins, and on columns used to filter (`release_year`, `type`) or sort (`date_added`).
+**Where they were added:** on foreign key columns used in joins, and on columns used to filter (`release_year`, `type`) or sort (`date_added`). Almost every meaningful query against a normalized schema involves joining a child table to its parent via the FK column.
 
 ```sql
 CREATE INDEX IX_TitleGenres_GenreId ON TitleGenres(genre_id); --IX is a naming convention for index
